@@ -1,1 +1,3 @@
-visualization of numerical solutions of PDE using the finite-difference method (FDM)
+Visualization of numerical solutions of PDE using the finite-difference method (FDM)
+
+Examples: wave equation (left) & advection-diffusion equation (right)
