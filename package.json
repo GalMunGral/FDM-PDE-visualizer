@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "dev": "esbuild ./src/index.ts --outdir=docs --bundle --watch"
+    "build": "esbuild ./src/index.ts --outdir=dist --bundle && cp src/index.html dist"
   },
   "devDependencies": {
     "esbuild": "^0.18.17",

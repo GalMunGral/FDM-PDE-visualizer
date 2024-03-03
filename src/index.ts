@@ -64,6 +64,6 @@ function setup(
       rafHandle = requestAnimationFrame(render);
     });
 
-    setTimeout(reset, 3000);
+    setTimeout(reset, 10000);
   })();
 }
