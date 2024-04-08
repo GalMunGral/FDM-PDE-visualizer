@@ -1,69 +1,93 @@
 import { makeGrid, zeros } from "./utils";
 import { FDM } from "./FDM";
+import * as THREE from "three";
 
-const N = 40;
+const N = 50;
 
-setup(
-  document.querySelector("#advection–diffusion"),
-  (i, j, { dudx, d2udx2, d2udy2 }) =>
-    20 * dudx(i, j) + 20 * (d2udx2(i, j) + d2udy2(i, j))
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(
+  50,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  1000
 );
 
-setup(
-  document.querySelector("#wave"),
-  (i, j, { v }) => v(i, j),
-  (i, j, { d2udx2, d2udy2 }) => 200 * (d2udx2(i, j) + d2udy2(i, j))
-);
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const light = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(light);
+
+const directionalLight1 = new THREE.DirectionalLight(0xffffff);
+scene.add(directionalLight1);
+
+const directionalLight2 = new THREE.DirectionalLight(0xffff00);
+directionalLight2.position.set(1, 0, 1);
+scene.add(directionalLight2);
+
+camera.translateY(-1.5).translateZ(1.5).lookAt(new THREE.Vector3(0, 0, 0));
+
+const AMPLITUDE = 0.8;
 
 function initialValue(): Fn {
-  const gaussians: Array<[Float, Float, Float]> = [];
-  let n = 20;
-  while (n--) {
+  const gaussians: Array<[Float, Float, Float, Float]> = [];
+  const n = 1 + Math.round(Math.random() * 50);
+  for (let i = 0; i < n; ++i) {
     gaussians.push([
       (Math.random() * 0.8 + 0.1) * N,
       (Math.random() * 0.8 + 0.1) * N,
+      (AMPLITUDE / Math.sqrt(n)) * Math.random(),
       Math.random() * 0.01 + 0.1,
     ]);
   }
   return (i, j) => {
     let u = 0;
-    for (const [ci, cj, k] of gaussians) {
-      u += Math.exp(-k * ((i - ci) ** 2 + (j - cj) ** 2));
+    for (const [ci, cj, ampl, k] of gaussians) {
+      u += ampl * Math.exp(-k * ((i - ci) ** 2 + (j - cj) ** 2));
     }
     return u;
   };
 }
 
-function setup(
-  canvas: HTMLCanvasElement,
-  dudt: UserFn,
-  dvdt: UserFn = () => 0
-) {
-  const ctx = canvas.getContext("2d")!;
-  const height = ctx.canvas.height;
-  const width = ctx.canvas.width;
-  const imageData = new ImageData(width, height);
+const dudt: UserFn = (i, j, { v }) => v(i, j);
+const dvdt: UserFn = (i, j, { d2udx2, d2udy2 }) =>
+  500 * (d2udx2(i, j) + d2udy2(i, j));
 
-  let rafHandle = -1;
-  (function reset() {
-    cancelAnimationFrame(rafHandle);
+// const dvdt: UserFn = (i, j, { dudx, d2udx2, d2udy2 }) =>
+//   20 * dudx(i, j) + 20 * (d2udx2(i, j) + d2udy2(i, j));
+// const dudt = () => 0;
 
-    const Sol = FDM(
-      makeGrid(N, N, initialValue()),
-      zeros(50, 50),
-      dudt,
-      dvdt,
-      1,
-      0.0001
-    );
+let angle = 0;
+let rafHandle = -1;
+let mesh: THREE.Mesh | null = null;
+(function reset() {
+  cancelAnimationFrame(rafHandle);
 
-    rafHandle = requestAnimationFrame(function render() {
+  const Sol = FDM(
+    makeGrid(N, N, initialValue()),
+    zeros(N, N),
+    dudt,
+    dvdt,
+    1,
+    0.0001
+  );
+
+  let start = Date.now();
+
+  rafHandle = requestAnimationFrame(function render() {
+    angle += 0.002;
+    if (Date.now() - start > 500) {
       Sol.step(100);
-      Sol.transfer(imageData, 0, 1);
-      ctx.putImageData(imageData, 0, 0);
-      rafHandle = requestAnimationFrame(render);
-    });
+    }
+    scene.remove(mesh);
+    mesh = Sol.toMesh();
+    mesh.geometry.translate(-0.5, -0.5, 0);
+    mesh.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), angle);
+    scene.add(mesh);
+    renderer.render(scene, camera);
+    rafHandle = requestAnimationFrame(render);
+  });
 
-    setTimeout(reset, 10000);
-  })();
-}
+  setTimeout(reset, 2000);
+})();

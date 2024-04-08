@@ -1,4 +1,5 @@
 import { clamp, zeros } from "./utils";
+import * as THREE from "three";
 
 export function FDM(
   U: Grid,
@@ -41,37 +42,42 @@ export function FDM(
     // console.debug(dMax);
   }
 
-  function transfer(imageData: ImageData, min: Float, max: Float): void {
-    const { width, height, data } = imageData;
-    for (let i = 0; i < height; ++i) {
-      for (let j = 0; j < width; ++j) {
-        const x = (n / width) * j;
-        const y = (m / height) * i;
-        const j1 = Math.floor(x);
-        const j2 = j1 + 1;
-        const i1 = Math.floor(y);
-        const i2 = i1 + 1;
-        const tx = (x - j1) / (j2 - j1);
-        const ty = (y - i1) / (i2 - i1);
+  const index = (i: number, j: number) => i * n + j;
 
-        const v =
-          u(i1, j1) * (1 - tx) * (1 - ty) +
-          u(i1, j2) * tx * (1 - ty) +
-          u(i2, j1) * (1 - tx) * ty +
-          u(i2, j2) * tx * ty;
-
-        const I = 255 * clamp((v - min) / (max - min), 0, 1);
-        const base = (height - 1 - i) * width + j;
-        data[base * 4] = I;
-        data[base * 4 + 1] = I;
-        data[base * 4 + 2] = I;
-        data[base * 4 + 3] = 255;
+  function toMesh(width = 500, height = 200): THREE.Mesh {
+    const vertices: number[] = [];
+    for (let i = 0; i < m; ++i) {
+      for (let j = 0; j < n; ++j) {
+        vertices.push(j / (n - 1), i / (m - 1), u(i, j));
       }
     }
+    const indices: number[] = [];
+    for (let i = 1; i < m; ++i) {
+      for (let j = 1; j < n; ++j) {
+        indices.push(index(i - 1, j - 1), index(i, j), index(i, j - 1));
+        indices.push(index(i, j), index(i - 1, j - 1), index(i - 1, j));
+      }
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setIndex(indices);
+    geometry.setAttribute(
+      "position",
+      new THREE.BufferAttribute(new Float32Array(vertices), 3)
+    );
+    geometry.computeVertexNormals();
+
+    const material = new THREE.MeshStandardMaterial({
+      color: 0xff0000,
+      roughness: 0,
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+
+    return mesh;
   }
 
   return {
     step,
-    transfer,
+    toMesh,
   };
 }
