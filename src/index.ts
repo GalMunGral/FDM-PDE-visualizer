@@ -55,7 +55,7 @@ function initialValue(M: number): Fn {
 
 const dudt: UserFn = (i, j, { v }) => v(i, j);
 const dvdt: UserFn = (i, j, { d2udx2, d2udy2 }) =>
-  300 * (d2udx2(i, j) + d2udy2(i, j));
+  500 * (d2udx2(i, j) + d2udy2(i, j));
 
 let angle = 0;
 let numBasis = 0;
