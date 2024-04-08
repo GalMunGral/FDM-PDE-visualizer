@@ -58,23 +58,23 @@ const dvdt: UserFn = (i, j, { d2udx2, d2udy2 }) =>
   300 * (d2udx2(i, j) + d2udy2(i, j));
 
 let angle = 0;
-let numOfPeaks = 0;
+let numBasis = 0;
 let rafHandle = -1;
 let mesh: THREE.Mesh | null = null;
 
 (function reset() {
   cancelAnimationFrame(rafHandle);
 
-  numOfPeaks = (numOfPeaks + 1) % 10;
-
   const Sol = FDM(
-    makeGrid(N, N, initialValue(numOfPeaks + 1)),
+    makeGrid(N, N, initialValue(numBasis + 3)),
     zeros(N, N),
     dudt,
     dvdt,
     1,
     0.0001
   );
+
+  numBasis = (numBasis + 10) % 100;
 
   let start = Date.now();
 
@@ -95,5 +95,5 @@ let mesh: THREE.Mesh | null = null;
     rafHandle = requestAnimationFrame(render);
   });
 
-  setTimeout(reset, 2000);
+  setTimeout(reset, 3000);
 })();
