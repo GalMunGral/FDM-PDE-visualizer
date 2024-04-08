@@ -26,7 +26,7 @@ const directionalLight2 = new THREE.DirectionalLight(0xffff00);
 directionalLight2.position.set(1, 0, 1);
 scene.add(directionalLight2);
 
-camera.translateY(-1.5).translateZ(1.5).lookAt(new THREE.Vector3(0, 0, 0));
+camera.translateY(-1.5).translateZ(1).lookAt(new THREE.Vector3(0, 0, 0));
 
 const AMPLITUDE = 0.5;
 
@@ -38,8 +38,8 @@ function initialValue(M: number): Fn {
   const gaussians: Array<[Float, Float, Float, Float]> = [];
   for (let i = 0; i < M; ++i) {
     gaussians.push([
-      rand(1 / 4, 3 / 4) * N,
-      rand(1 / 4, 3 / 4) * N,
+      rand(1 / 5, 4 / 5) * N,
+      rand(1 / 5, 4 / 5) * N,
       (AMPLITUDE / Math.sqrt(M)) * rand(0.5, 1),
       rand(0.1, 0.11),
     ]);
@@ -55,7 +55,7 @@ function initialValue(M: number): Fn {
 
 const dudt: UserFn = (i, j, { v }) => v(i, j);
 const dvdt: UserFn = (i, j, { d2udx2, d2udy2 }) =>
-  500 * (d2udx2(i, j) + d2udy2(i, j));
+  1000 * (d2udx2(i, j) + d2udy2(i, j));
 
 let angle = 0;
 let numBasis = 0;
@@ -76,14 +76,16 @@ let mesh: THREE.Mesh | null = null;
 
   numBasis = (numBasis + 10) % 100;
 
-  let start = Date.now();
+  let start = -1;
+  let prev = -1;
 
-  rafHandle = requestAnimationFrame(function render() {
+  rafHandle = requestAnimationFrame(function render(t) {
     angle += 0.002;
-
-    if (Date.now() - start > 500) {
-      Sol.step(100);
+    if (start < 0) start = t;
+    if (t - start > 500) {
+      Sol.step(Math.round(5 * (t - prev)));
     }
+    prev = t;
 
     scene.remove(mesh);
     mesh = Sol.toMesh();
@@ -95,5 +97,5 @@ let mesh: THREE.Mesh | null = null;
     rafHandle = requestAnimationFrame(render);
   });
 
-  setTimeout(reset, 3000);
+  setTimeout(reset, 2000);
 })();
