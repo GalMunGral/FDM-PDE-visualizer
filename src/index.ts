@@ -28,17 +28,20 @@ scene.add(directionalLight2);
 
 camera.translateY(-1.5).translateZ(1.5).lookAt(new THREE.Vector3(0, 0, 0));
 
-const AMPLITUDE = 0.8;
+const AMPLITUDE = 0.5;
 
-function initialValue(): Fn {
+function rand(start: number, end: number) {
+  return start + (end - start) * Math.random();
+}
+
+function initialValue(M: number): Fn {
   const gaussians: Array<[Float, Float, Float, Float]> = [];
-  const n = 1 + Math.round(Math.random() * 50);
-  for (let i = 0; i < n; ++i) {
+  for (let i = 0; i < M; ++i) {
     gaussians.push([
-      (Math.random() * 0.8 + 0.1) * N,
-      (Math.random() * 0.8 + 0.1) * N,
-      (AMPLITUDE / Math.sqrt(n)) * Math.random(),
-      Math.random() * 0.01 + 0.1,
+      rand(1 / 4, 3 / 4) * N,
+      rand(1 / 4, 3 / 4) * N,
+      (AMPLITUDE / Math.sqrt(M)) * rand(0.5, 1),
+      rand(0.1, 0.11),
     ]);
   }
   return (i, j) => {
@@ -52,20 +55,20 @@ function initialValue(): Fn {
 
 const dudt: UserFn = (i, j, { v }) => v(i, j);
 const dvdt: UserFn = (i, j, { d2udx2, d2udy2 }) =>
-  500 * (d2udx2(i, j) + d2udy2(i, j));
-
-// const dvdt: UserFn = (i, j, { dudx, d2udx2, d2udy2 }) =>
-//   20 * dudx(i, j) + 20 * (d2udx2(i, j) + d2udy2(i, j));
-// const dudt = () => 0;
+  300 * (d2udx2(i, j) + d2udy2(i, j));
 
 let angle = 0;
+let numOfPeaks = 0;
 let rafHandle = -1;
 let mesh: THREE.Mesh | null = null;
+
 (function reset() {
   cancelAnimationFrame(rafHandle);
 
+  numOfPeaks = (numOfPeaks + 1) % 10;
+
   const Sol = FDM(
-    makeGrid(N, N, initialValue()),
+    makeGrid(N, N, initialValue(numOfPeaks + 1)),
     zeros(N, N),
     dudt,
     dvdt,
@@ -77,15 +80,18 @@ let mesh: THREE.Mesh | null = null;
 
   rafHandle = requestAnimationFrame(function render() {
     angle += 0.002;
+
     if (Date.now() - start > 500) {
       Sol.step(100);
     }
+
     scene.remove(mesh);
     mesh = Sol.toMesh();
     mesh.geometry.translate(-0.5, -0.5, 0);
     mesh.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), angle);
     scene.add(mesh);
     renderer.render(scene, camera);
+
     rafHandle = requestAnimationFrame(render);
   });
 
