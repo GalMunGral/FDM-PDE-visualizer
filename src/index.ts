@@ -74,7 +74,7 @@ let mesh: THREE.Mesh | null = null;
     0.0001
   );
 
-  numBasis = (numBasis + 10) % 100;
+  numBasis = (numBasis + 10) % 30;
 
   let start = -1;
   let prev = -1;

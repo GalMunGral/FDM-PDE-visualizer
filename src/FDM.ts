@@ -22,7 +22,6 @@ export function FDM(
     (u(i - 1, j) - 2 * u(i, j) + u(i + 1, j)) / h ** 2;
 
   function step(iters: Int): void {
-    // let dMax = -Infinity;
     while (iters--) {
       let U$ = zeros(m, n);
       let V$ = zeros(m, n);
@@ -31,7 +30,6 @@ export function FDM(
           const du = dt * dudt(i, j, { u, v, dudx, dudy, d2udx2, d2udy2 });
           const dv = dt * dvdt(i, j, { u, v, dudx, dudy, d2udx2, d2udy2 });
           if (isNaN(du) || isNaN(dv)) throw new Error("NaN");
-          // dMax = Math.max(dMax, Math.abs(du), Math.abs(dv));
           U$[i][j] = U[i][j] + du;
           V$[i][j] = V[i][j] + dv;
         }
@@ -39,7 +37,6 @@ export function FDM(
       U = U$;
       V = V$;
     }
-    // console.debug(dMax);
   }
 
   const index = (i: number, j: number) => i * n + j;
