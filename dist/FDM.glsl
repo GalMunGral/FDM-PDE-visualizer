@@ -1,10 +1,10 @@
 #version 300 es
 precision mediump float;
 
+uniform sampler2D UV;
 uniform float N;
 uniform float dt;
 uniform float h;
-uniform sampler2D UV;
 
 in vec2 texCoord;
 out vec4 fragColor;
