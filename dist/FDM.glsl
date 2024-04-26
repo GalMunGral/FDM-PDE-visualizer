@@ -9,8 +9,6 @@ uniform sampler2D UV;
 in vec2 texCoord;
 out vec4 fragColor;
 
-
-
 void main() {
 
 #define u(x, y) texture(UV, vec2(mod(x, N) / N, mod(y, N) / N)).x
