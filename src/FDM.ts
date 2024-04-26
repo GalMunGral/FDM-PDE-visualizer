@@ -1,56 +1,126 @@
-import { clamp, zeros } from "./utils";
 import * as THREE from "three";
+import { createProgramFromScripts, rand } from "./utils";
 
-export function FDM(
-  U: Grid,
-  V: Grid,
-  dudt: UserFn,
-  dvdt: UserFn,
-  h: Float,
-  dt: Float
-) {
-  const m = U.length;
-  const n = U[0].length;
+const canvas = new OffscreenCanvas(1, 1);
+const gl = canvas.getContext("webgl2")!;
+const program = await createProgramFromScripts(
+  gl,
+  "./vertex.glsl",
+  "./FDM.glsl"
+);
 
-  const u: Fn = (i, j) => U[(i + m) % m][(j + n) % n];
-  const v: Fn = (i, j) => V[(i + m) % m][(j + n) % n];
-  const dudx: Fn = (i, j) => (u(i, j + 1) - u(i, j - 1)) / (2 * h);
-  const dudy: Fn = (i, j) => (u(i + 1, j) - u(i - 1, j)) / (2 * h);
-  const d2udx2: Fn = (i, j) =>
-    (u(i, j - 1) - 2 * u(i, j) + u(i, j + 1)) / h ** 2;
-  const d2udy2: Fn = (i, j) =>
-    (u(i - 1, j) - 2 * u(i, j) + u(i + 1, j)) / h ** 2;
+gl.getExtension("EXT_color_buffer_float");
 
-  function step(iters: Int): void {
-    while (iters--) {
-      let U$ = zeros(m, n);
-      let V$ = zeros(m, n);
-      for (let i = 0; i < m; ++i) {
-        for (let j = 0; j < n; ++j) {
-          const du = dt * dudt(i, j, { u, v, dudx, dudy, d2udx2, d2udy2 });
-          const dv = dt * dvdt(i, j, { u, v, dudx, dudy, d2udx2, d2udy2 });
-          if (isNaN(du) || isNaN(dv)) throw new Error("NaN");
-          U$[i][j] = U[i][j] + du;
-          V$[i][j] = V[i][j] + dv;
+const vertices = [-1, 1, 1, 1, -1, -1, 1, -1];
+var buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+var positionLoc = gl.getAttribLocation(program, "ndcCoord");
+gl.enableVertexAttribArray(positionLoc);
+gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
+
+const indexBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+const indices = [2, 1, 0, 1, 2, 3];
+gl.bufferData(
+  gl.ELEMENT_ARRAY_BUFFER,
+  new Uint16Array(indices),
+  gl.STATIC_DRAW
+);
+
+export function createImage(
+  gl: WebGL2RenderingContext,
+  N: int,
+  init: Float32Array
+): WebGLTexture {
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG32F, N, N, 0, gl.RG, gl.FLOAT, init, 0);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return texture;
+}
+
+export async function FDM(N: int, h: float, dt: float) {
+  canvas.width = N;
+  canvas.height = N;
+  gl.viewport(0, 0, N, N);
+  gl.useProgram(program);
+
+  // initial values
+  const gaussians: Array<[float, float, float, float]> = [];
+  const M = 100;
+  for (let i = 0; i < M; ++i) {
+    const m = 1 / 4;
+    gaussians.push([
+      rand(m, 1 - m) * N,
+      rand(m, 1 - m) * N,
+      rand(0, 0.5) / Math.sqrt(M),
+      N / 20,
+    ]);
+  }
+
+  const UV = new Float32Array(
+    Array(N * N)
+      .fill(0)
+      .flatMap((_, k) => {
+        let u = 0;
+        for (const [ci, cj, ampl, sigma] of gaussians) {
+          u +=
+            ampl *
+            Math.exp(
+              -((Math.floor(k / N) - ci) ** 2 + ((k % N) - cj) ** 2) /
+                sigma ** 2
+            );
         }
-      }
-      U = U$;
-      V = V$;
+        return [u, 0];
+      })
+  );
+
+  let texture0 = createImage(gl, N, new Float32Array(UV));
+  let texture1 = createImage(gl, N, new Float32Array(UV));
+
+  gl.uniform1i(gl.getUniformLocation(program, "UV"), 0);
+  gl.uniform1f(gl.getUniformLocation(program, "N"), N);
+  gl.uniform1f(gl.getUniformLocation(program, "h"), h);
+  gl.uniform1f(gl.getUniformLocation(program, "dt"), dt);
+
+  const fb = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+
+  function step(n: int) {
+    while (n--) {
+      gl.bindTexture(gl.TEXTURE_2D, texture0);
+      gl.framebufferTexture2D(
+        gl.FRAMEBUFFER,
+        gl.COLOR_ATTACHMENT0,
+        gl.TEXTURE_2D,
+        texture1,
+        0
+      );
+      gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+      [texture0, texture1] = [texture1, texture0];
     }
   }
 
-  const index = (i: number, j: number) => i * n + j;
+  step(1);
 
-  function toMesh(width = 500, height = 200): THREE.Mesh {
+  const index = (i: number, j: number) => i * N + j;
+
+  function toMesh(): THREE.Mesh {
+    gl.readPixels(0, 0, N, N, gl.RG, gl.FLOAT, UV, 0);
+
     const vertices: number[] = [];
-    for (let i = 0; i < m; ++i) {
-      for (let j = 0; j < n; ++j) {
-        vertices.push(j / (n - 1), i / (m - 1), u(i, j));
+    for (let i = 0; i < N; ++i) {
+      for (let j = 0; j < N; ++j) {
+        vertices.push(j / (N - 1), i / (N - 1), UV[index(i, j) * 2]);
       }
     }
     const indices: number[] = [];
-    for (let i = 1; i < m; ++i) {
-      for (let j = 1; j < n; ++j) {
+    for (let i = 1; i < N; ++i) {
+      for (let j = 1; j < N; ++j) {
         indices.push(index(i - 1, j - 1), index(i, j), index(i, j - 1));
         indices.push(index(i, j), index(i - 1, j - 1), index(i - 1, j));
       }

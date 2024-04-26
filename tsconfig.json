@@ -3,6 +3,8 @@
   "compilerOptions": {
     "lib": ["ESNext", "DOM"],
     "types": ["./src/types.d.ts"],
-    "noImplicitAny": true
+    "noImplicitAny": true,
+    "target": "ESNext",
+    "module": "ESNext"
   }
 }

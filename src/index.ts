@@ -1,8 +1,5 @@
-import { makeGrid, zeros } from "./utils";
 import { FDM } from "./FDM";
 import * as THREE from "three";
-
-const N = 50;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
@@ -28,64 +25,26 @@ scene.add(directionalLight2);
 
 camera.translateY(-1.5).translateZ(1).lookAt(new THREE.Vector3(0, 0, 0));
 
-const AMPLITUDE = 0.5;
-
-function rand(start: number, end: number) {
-  return start + (end - start) * Math.random();
-}
-
-function initialValue(M: number): Fn {
-  const gaussians: Array<[Float, Float, Float, Float]> = [];
-  for (let i = 0; i < M; ++i) {
-    gaussians.push([
-      rand(1 / 5, 4 / 5) * N,
-      rand(1 / 5, 4 / 5) * N,
-      (AMPLITUDE / Math.sqrt(M)) * rand(0.5, 1),
-      rand(0.1, 0.11),
-    ]);
-  }
-  return (i, j) => {
-    let u = 0;
-    for (const [ci, cj, ampl, k] of gaussians) {
-      u += ampl * Math.exp(-k * ((i - ci) ** 2 + (j - cj) ** 2));
-    }
-    return u;
-  };
-}
-
-const dudt: UserFn = (i, j, { v }) => v(i, j);
-const dvdt: UserFn = (i, j, { d2udx2, d2udy2 }) =>
-  1000 * (d2udx2(i, j) + d2udy2(i, j));
-
 let angle = 0;
-let numBasis = 0;
 let rafHandle = -1;
 let mesh: THREE.Mesh | null = null;
 
-(function reset() {
+(async function reset() {
   cancelAnimationFrame(rafHandle);
 
-  const Sol = FDM(
-    makeGrid(N, N, initialValue(numBasis + 3)),
-    zeros(N, N),
-    dudt,
-    dvdt,
-    1,
-    0.0001
-  );
+  const Sol = await FDM(100, 0.01, 0.0001);
 
-  numBasis = (numBasis + 10) % 30;
-
-  let start = -1;
   let prev = -1;
-
+  let start = -1;
   rafHandle = requestAnimationFrame(function render(t) {
-    angle += 0.002;
-    if (start < 0) start = t;
-    if (t - start > 500) {
-      Sol.step(Math.round(5 * (t - prev)));
+    if (start == -1) start = t;
+    if (prev == -1) prev = t;
+    if (t - start > 200) {
+      Sol.step(Math.round((t - prev) / 10));
     }
     prev = t;
+
+    angle += 0.005;
 
     scene.remove(mesh);
     mesh = Sol.toMesh();
@@ -97,5 +56,5 @@ let mesh: THREE.Mesh | null = null;
     rafHandle = requestAnimationFrame(render);
   });
 
-  setTimeout(reset, 2000);
+  setTimeout(reset, 3000);
 })();
